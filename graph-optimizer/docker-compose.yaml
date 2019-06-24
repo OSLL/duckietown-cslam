@@ -1,0 +1,15 @@
+version: '3'
+services:
+    localization:
+        build:
+            context: .
+        network_mode: "host"
+        environment:
+            ATMSGS_BAG: /data/processed.bag
+            OUTPUT_DIR: /challenges/challenge-evaluation-output
+            ROS_MASTER: duckietown3
+            ROS_MASTER_IP: 172.31.168.115
+        volumes:
+            - ${PWD}/../scripts/apriltagsDB_custom.yaml:/graph_optimizer/catkin_ws/src/pose_graph_builder/data/apriltagsDB_custom.yaml
+            - /home/amaury/Desktop/submission_3774/attempt_01/bags:/data
+

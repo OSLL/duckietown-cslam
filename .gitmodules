@@ -1,6 +1,6 @@
-[submodule "ros-cslam/src/duckietown-visualization"]
-	path = ros-cslam/src/duckietown-visualization
+[submodule "graph-optimizer/ros-graph-optimizer/src/duckietown-visualization"]
+	path = graph-optimizer/ros-graph-optimizer/src/duckietown-visualization
 	url = https://github.com/duckietown/duckietown-visualization.git
-[submodule "lib-cslam/src/apriltags3-py"]
-	path = lib-cslam/src/apriltags3-py
+[submodule "acquisition/lib-cslam/src/apriltags3-py"]
+	path = acquisition/lib-cslam/src/apriltags3-py
 	url = https://github.com/duckietown/apriltags3-py

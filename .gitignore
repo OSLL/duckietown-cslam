@@ -12,3 +12,21 @@ lib-cslam/out-comptests
 
 dts
 scripts/docker-compose-amauryduckiebot-x86.yml
+
+cslam-visualization/ros-cslam-visualization/devel
+cslam-visualization/ros-cslam-visualization/build
+cslam-visualization/ros-cslam-visualization/install
+cslam-diagnostics/ros-cslam-diagnostics/devel
+cslam-diagnostics/ros-cslam-diagnostics/build
+cslam-diagnostics/ros-cslam-diagnostics/install
+acquisition/ros-cslam/devel/
+acquisition/ros-cslam/build/
+acquisition/ros-cslam/src/CMakeLists.txt
+acquisition/lib-cslam/out-comptest
+acquisition/ros-cslam/.catkin_workspace
+acquisition/lib-cslam/src/duckietown_cslam.egg-info
+graph-optimizer/ros-graph-optimizer/devel
+graph-optimizer/ros-graph-optimizer/build
+graph-optimizer/ros-graph-optimizer/install
+graph-optimizer/ros-graph-optimizer/src/CMakeLists.txt
+graph-optimizer/ros-graph-optimizer/.catkin_workspace
