@@ -109,7 +109,11 @@ def get_environment_variables():
 
 def draw(tr0, tr0_, tr1, tr1_):
     fig = plt.figure(figsize=(8, 8))
-    sub_plt = Axes3D(fig, proj_type='ortho')
+    plot1 = Axes3D(fig, proj_type='ortho')
+    fig2 = plt.figure(figsize=(8, 8))
+    plot2 = fig2.add_subplot(1, 1, 1)
+    fig3 = plt.figure(figsize=(10, 4))
+    plot3 = fig3.add_subplot(1, 1, 1)
 
     trs = [tr0, tr0_, tr1, tr1_]
     for i in range(4):
@@ -128,9 +132,11 @@ def draw(tr0, tr0_, tr1, tr1_):
     mid_y = (max_y + min_y) / 2
     mid_z = (max_z + min_z) / 2
     side2 = max(max_x - min_x, max_y - min_y, max_z - min_z) / 2 * 1.2
-    sub_plt.set_xlim3d(mid_x - side2, mid_x + side2)
-    sub_plt.set_ylim3d(mid_y - side2, mid_y + side2)
-    sub_plt.set_zlim3d(mid_z - side2, mid_z + side2)
+    plot1.set_xlim3d(mid_x - side2, mid_x + side2)
+    plot1.set_ylim3d(mid_y - side2, mid_y + side2)
+    plot1.set_zlim3d(mid_z - side2, mid_z + side2)
+    plot2.set_xlim(mid_x - side2, mid_x + side2)
+    plot2.set_ylim(mid_y - side2, mid_y + side2)
 
     colors = ['blue', 'cyan', 'red', 'magenta']
     for i in range(4):
@@ -139,12 +145,14 @@ def draw(tr0, tr0_, tr1, tr1_):
             tr_x = [t[0] for t in marker_trs]
             tr_y = [t[1] for t in marker_trs]
             tr_z = [t[2] for t in marker_trs]
-            sub_plt.scatter(tr_x, tr_y, tr_z, marker='o', color=colors[i])
+            plot1.scatter(tr_x, tr_y, tr_z, marker='o', color=colors[i])
+            plot2.plot(tr_x, tr_y, marker='o', color=colors[i])
 
-    sub_plt.set_xlabel('x (m)')
-    sub_plt.set_ylabel('y (m)')
-    sub_plt.set_zlabel('z (m)')
-
+    plot1.set_xlabel('x (m)')
+    plot1.set_ylabel('y (m)')
+    plot1.set_zlabel('z (m)')
+    plot2.set_xlabel('x (m)')
+    plot2.set_ylabel('y (m)')
 
     diff = ([], [])
     for marker in trs[0]:
@@ -154,11 +162,9 @@ def draw(tr0, tr0_, tr1, tr1_):
             diff[0].append(norm([marker_trs_0[i][0], marker_trs_0[i][1]]))
             diff[1].append(norm([marker_trs_1[i][j] - marker_trs_0[i][j] for j in range(3)]))
 
-    fig2 = plt.figure(figsize=(10, 4))
-    plot2 = fig2.add_subplot(1, 1, 1)
-    plot2.plot(diff[0], diff[1], 'go', markersize=0.5)
-    plot2.set_xlabel('distance to z-axis (m)')
-    plot2.set_ylabel('distance between positions (m)')
+    plot3.plot(diff[0], diff[1], 'go', markersize=0.5)
+    plot3.set_xlabel('distance to z-axis (m)')
+    plot3.set_ylabel('distance between positions (m)')
 
     plt.pause(10000)
 
