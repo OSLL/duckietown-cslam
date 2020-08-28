@@ -12,5 +12,5 @@ docker build -t apriltag_testing-aruco -f ../04-Apriltag-processing/Dockerfile .
 docker build -t apriltag_testing .
 xhost +
 docker run -it --rm -e DISPLAY=unix$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix -v $1:/data \
-       -e INPUT_BAG_PATH=/data/$2 -e ACQ_DETECTOR_TYPE=DFC apriltag_testing
+       -e INPUT_BAG_PATH=/data/$2 apriltag_testing
 xhost -
