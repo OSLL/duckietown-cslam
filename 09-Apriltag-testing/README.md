@@ -1,21 +1,18 @@
 ## Apriltag accuracy tester
 
-Программа считывает по 1 кадру из rosbag-файла (используются топики 
-`/watchtower01/camera_node/image/compressed` и `/watchtower01/camera_node/camera_info`), 
-запускает детекцию в библиотеках Apriltags3 и ArUco, затем строит график полученных траекторий.
+The program reads frames one by one from the rosbag file (topics `/watchtower01/camera_node/image/compressed` and `/watchtower01/camera_node/camera_info` are used), starts detection in the Apriltags3 and ArUco libraries, then builds a graph of the received trajectories.
 
-Вручную запускать докерфайл не нужно, его использует `launcher.bash`.
-Пример запуска:
+You do not need to manually launch the dockerfile, it is used by `launcher.bash`.
+Launch example:
 ```
 ./launcher.bash <path to bag-file dir> <bag-file name>
 ```
 
-Если маркер на кадре был распознан обеими библиотеками, то его координаты из ArUco рисуются красным
-кругом, из Apriltags3 — синим, если только библиотекой ArUco — фиолетовым, только Apriltags3 — голубым.
+If a marker on the frame was recognized by both libraries, then its coordinates from ArUco are drawn in a red circle, from Apriltags3 - in blue, if only by the ArUco library - in purple, only Apriltags3 - in blue.
 
 -------------------
-* Может присутствовать проблема с масштабом z-оси. Для получения корректных глубин на графике
-можно изменить коэффициент `1.25` в строчке
+* There may be a problem with the z-axis scale. To obtain correct depths on the graph, you can change the coefficient `1.25` in the line
+
 ```
 trs[i][marker] = map(lambda t: [t[0], t[1], t[2] / 1.25], trs[i][marker])  # odd bug with z-scale
 ```
