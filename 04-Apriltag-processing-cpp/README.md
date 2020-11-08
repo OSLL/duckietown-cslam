@@ -1,24 +1,22 @@
 ## Only cpp apriltag processor
 
-Предполагается использование прошивки RPI версии `master19`.
+It assumes the use of RPI firmware version `master19`.
 
-Для ускорения работы детектора изображения с RPI-камеры принимаются в несжатом виде. Это требует замены 2
-скриптов в контейнере `dt18_03_roscore_duckiebot-interface_1`: `cam_info_reader_node.py` и `camera_node_sequence.py`.
-Сделать это можно следующей командой (пример для `cam_info_reader_node.py`):
+To speed up the work of the detector, images from the RPI camera are received uncompressed. This requires replacing 2 scripts in the `dt18_03_roscore_duckiebot-interface_1` container: `cam_info_reader_node.py` and `camera_node_sequence.py`.
+This can be done with the following command (example for `cam_info_reader_node.py`):
 ```
 scp <path to cam_info_reader_node.py> <rpi name>:/home/duckie/cam_info_reader_node.py && \
 ssh <rpi name> docker cp /home/duckie/cam_info_reader_node.py dt18_03_roscore_duckiebot-interface_1:/home/duckiebot-interface/catkin_ws/src/camera_driver/src/cam_info_reader_node.py && \
 docker -H <rpi name>.local restart dt18_03_roscore_duckiebot-interface_1
 ```
 
-Также нужно изменить разрешение изображений на 1296x976 (!не x972) в файле 
-`/home/duckiebot-interface/catkin_ws/src/duckietown/config/baseline/camera_driver/camera_node/default.yaml`. 
-И записать данные калибровки в `/data/config/calibrations/camera_intrinsic/default.yaml`. 
-Примеры файлов также в папке `dt-duckiebot-interface`.
+You also need to change the resolution of the images to 1296x976 (!not x972) in the file `/home/duckiebot-interface/catkin_ws/src/duckietown/config/baseline/camera_driver/camera_node/default.yaml`.
+And write the calibration data to `/data/config/calibrations/camera_intrinsic/default.yaml`.
+Sample files are also in the `dt-duckiebot-interface folder`.
 
 -------------------
-Для сборки докер-образа на RPI нужно поменять базовый образ в докерфайле с `daffy-amd64` на `daffy-arm32v7`.
-Пример запуска контейнера на PRI:
+To build a docker image on an RPI, you need to change the base image in the dockerfile from `daffy-amd64` to `daffy-arm32v7`.
+An example of starting a container on PRI:
 ```
 docker -H <rpi name>.local run -it --rm --network=host -e ROS_MASTER_URI=http://<rpi ip>:11311 \
        -e ROS_HOSTNAME=<rpi ip> -e ACQ_DEVICE_NAME=<rpi name> --name apriltag_processor <docker image name>
