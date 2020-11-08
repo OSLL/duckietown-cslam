@@ -1,0 +1,6 @@
+<launch>
+
+    <node name="apriltag_processor_node" type="apriltag_processor_node" pkg="processing_node" output="screen" required="true">
+
+    </node>
+</launch>
