@@ -1,9 +1,8 @@
-FROM duckietown/dt-ros-commons:daffy-amd64
-#FROM duckietown/dt-ros-commons:daffy-arm32v7
+#FROM duckietown/dt-ros-commons:daffy-amd64
+FROM duckietown/dt-ros-commons:daffy-arm32v7
 
 # Install OpenCV and CvBridge
-RUN apt-get update && apt-get install -f -y --allow-unauthenticated \
-                      python-opencv ros-kinetic-cv-bridge ros-kinetic-rospy python-pip && apt-get clean
+RUN apt-get update && apt-get install -f -y libyaml-cpp-dev wget unzip
 RUN pip install pathos multiprocessing-logging
 
 # You always need to specify:
@@ -14,8 +13,8 @@ RUN pip install pathos multiprocessing-logging
 # ACQ_DEVICE_NAME # should match the topic, e.g. watchtower10
 
 # Download and install opencv-4.3.0 for the ArUco library
-RUN apt-get install -y wget unzip
-RUN cd / && wget https://github.com/opencv/opencv/archive/4.3.0.zip && unzip 4.3.0.zip && rm -r 4.3.0.zip
+RUN cd / && wget -t 0 -T 15 -c https://github.com/opencv/opencv/archive/4.3.0.zip && \
+    unzip 4.3.0.zip && rm -r 4.3.0.zip
 RUN mkdir /opencv-4.3.0/build && cd /opencv-4.3.0/build && \
     cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/usr/local .. && make -j$(nproc) && make install
 
@@ -27,16 +26,24 @@ ARG duckietown_msgs_dir=ros/src/duckietown_msgs
 # Download the ArUco library and fix the bug in it
 COPY ${processing_node_dir}/aruco_bug_fixer.py /${processing_node_dir}/aruco_bug_fixer.py
 RUN cd /${processing_node_dir} && wget https://sourceforge.net/projects/aruco/files/3.1.12/aruco-3.1.12.zip && \
-    unzip aruco-3.1.12.zip && rm -r aruco-3.1.12.zip && python aruco_bug_fixer.py
+    unzip aruco-3.1.12.zip && rm -r aruco-3.1.12.zip && python3 aruco_bug_fixer.py
+
+RUN cd /${processing_node_dir} && wget https://sourceforge.net/projects/raspicam/files/raspicam-0.1.9.zip && \
+    unzip raspicam-0.1.9.zip && rm -r raspicam-0.1.9.zip
+RUN mkdir /${processing_node_dir}/raspicam-0.1.9/build && cd /${processing_node_dir}/raspicam-0.1.9/build && \
+    cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_CXX_FLAGS="-std=c++11" .. && make -j$(nproc) && make install && ldconfig
 
 # Copy and build the program files and configure the environment variables
 COPY ${duckietown_msgs_dir} /${duckietown_msgs_dir}
 COPY ${processing_node_dir}/apriltag_processor_node.cpp /${processing_node_dir}/apriltag_processor_node.cpp
 COPY ${processing_node_dir}/CMakeLists.txt /${processing_node_dir}/CMakeLists.txt
 COPY ${processing_node_dir}/package.xml /${processing_node_dir}/package.xml
-RUN /bin/bash -c "cd /ros/src && source /opt/ros/kinetic/setup.bash && catkin_init_workspace && cd .. && catkin_make"
+RUN /bin/bash -c "cd /ros/src && source /opt/ros/noetic/setup.bash && catkin_init_workspace && cd .. && catkin_make"
 COPY ${processing_node_dir}/config.yml /${processing_node_dir}/config.yml
+COPY ${processing_node_dir}/calibr.yaml /${processing_node_dir}/calibr.yaml
+COPY ${processing_node_dir}/launch /${processing_node_dir}/launch
 ENV ACQ_CONFIG_YML /${processing_node_dir}/config.yml
+ENV ACQ_CALIBR_YAML /${processing_node_dir}/calibr.yaml
 
 # Set optional environment variables
 ENV ACQ_ROS_MASTER_URI_DEVICE_PORT 11311
@@ -46,6 +53,7 @@ ENV ACQ_TOPIC_CAMERAINFO camera_node/camera_info
 ENV ACQ_TAG_SIZE 0.065
 ENV ACQ_POSES_TOPIC poses
 ENV ACQ_DETECTOR_TYPE DFC
+ENV ACQ_IMAGE_PROCESSORS 3
 
-CMD /bin/bash -c "cd /ros && source /opt/ros/kinetic/setup.bash && source devel/setup.bash && \
-                  rosrun processing_node apriltag_processor_node"
+CMD /bin/bash -c "cd /ros && source /opt/ros/noetic/setup.bash && source devel/setup.bash && \
+                  roslaunch processing_node apriltag_processing.launch"

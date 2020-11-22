@@ -19,8 +19,6 @@
 
 //#include <sensor_msgs/CameraInfo.h>
 //#include <sensor_msgs/Image.h>
-//#include <boost/thread/thread.hpp>
-//#include <boost/lockfree/queue.hpp>
 //#include <sensor_msgs/image_encodings.h>
 //#include <ctime>
 
@@ -50,6 +48,36 @@ private:
     size_t n;
 };
 
+struct TimerAvrg {
+    std::vector<double> times;
+    size_t curr = 0, n;
+    std::chrono::high_resolution_clock::time_point begin, end;
+
+    TimerAvrg(int _n = 100) {
+        n = _n;
+        times.reserve(n);
+    }
+
+    inline void start() { begin = std::chrono::high_resolution_clock::now(); }
+
+    inline void stop() {
+        end = std::chrono::high_resolution_clock::now();
+        double duration = double(std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) * 1e-6;
+        if (times.size() < n) times.push_back(duration);
+        else {
+            times[curr] = duration;
+            curr++;
+            if (curr >= times.size()) curr = 0;
+        }
+    }
+
+    double getAvrg() {
+        double sum = 0;
+        for (auto t:times) sum += t;
+        return sum / double(times.size());
+    }
+};
+
 template<typename T>
 class concurrent_blocking_queue {
 public:
@@ -58,14 +86,10 @@ public:
     }
 
     bool pop(T &item) {
-//        cout << "pop lock" << endl;
         unique_lock<mutex> lock(m);
-//        cout << "pop unlock" << endl;
         while (q.empty() && !closed) {
-//            cout << "pop wait" << endl;
             c.wait(lock);
         }
-//        cout << "pop get" << endl;
         if (closed) {
             return false;
         }
@@ -75,18 +99,14 @@ public:
     }
 
     void push(const T &item) {
-//        cout << "push lock" << endl;
         unique_lock<mutex> lock(m);
-//        cout << "push unlock" << endl;
         q.push(item);
         lock.unlock();
         c.notify_one();
     }
 
     void push(T &&item) {
-//        cout << "push lock" << endl;
         unique_lock<mutex> lock(m);
-//        cout << "push unlock" << endl;
         q.push(move(item));
         lock.unlock();
         c.notify_one();
@@ -94,7 +114,7 @@ public:
 
     void close() {
         closed = true;
-        c.notify_one();
+        c.notify_all();
     }
 
     int size() {
@@ -112,7 +132,7 @@ private:
 struct tag_data {
     int tag_id;
     string tag_family;
-    vector<cv::Point> corners;
+    vector<cv::Point2f> corners;
     cv::Mat tvec, rvec;
 };
 
@@ -157,7 +177,6 @@ void img_processor(const marker_tracker_params& params,
     marker_tracker.loadParamsFromFile(params.config_file);
     cv::Mat image;
     while (img_queue.pop(image)) {
-//        sleep(1);
         map<int, cv::Ptr<TrackerImpl>> set_trackers = marker_tracker.track(image, 0.1);
         marker_tracker.estimatePose();
         vector<Marker> markers_vec(set_trackers.size());
@@ -172,7 +191,7 @@ void img_processor(const marker_tracker_params& params,
             tag.tvec = marker.Tvec;
             tag.rvec = marker.Rvec;
             for (int j = 0; j < marker.size(); j++) {
-                tag.corners[j] = marker[j];
+                tag.corners.push_back(marker[j]);
             }
             tag_queue.push(tag);
         }
@@ -271,11 +290,19 @@ int main(int argc, char **argv) {
                 apriltag_msg.corners[2 * i + 0] = tag.corners[i].x;
                 apriltag_msg.corners[2 * i + 1] = tag.corners[i].y;
             }
-            vec3.x = tag.tvec.at<float>(0);
-            vec3.y = tag.tvec.at<float>(1);
-            vec3.z = tag.tvec.at<float>(2);
-            apriltag_msg.transform.translation = vec3;
-            apriltag_msg.transform.rotation = rvec2quat(tag.rvec);
+            if (tag.tvec.cols * tag.tvec.rows != 3 || tag.rvec.cols * tag.rvec.rows != 3) {
+                apriltag_msg.transform.translation = geometry_msgs::Vector3();
+                apriltag_msg.transform.rotation = geometry_msgs::Quaternion();
+                apriltag_msg.transform.rotation.x = 1;
+                cout << "                                                                           ";
+                cout << "estimation_error: tvec=" << tag.tvec << "  rvec=" << tag.rvec << endl;
+            } else {
+                vec3.x = tag.tvec.at<float>(0);
+                vec3.y = tag.tvec.at<float>(1);
+                vec3.z = tag.tvec.at<float>(2);
+                apriltag_msg.transform.translation = vec3;
+                apriltag_msg.transform.rotation = rvec2quat(tag.rvec);
+            }
             apriltag_msg.header.stamp = t;
             apriltag_msg.header.seq = tag_msg_seq++;
             apriltag_msg.header.frame_id = device_name;
