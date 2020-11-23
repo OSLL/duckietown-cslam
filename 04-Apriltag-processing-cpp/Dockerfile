@@ -53,7 +53,7 @@ ENV ACQ_TOPIC_CAMERAINFO camera_node/camera_info
 ENV ACQ_TAG_SIZE 0.065
 ENV ACQ_POSES_TOPIC poses
 ENV ACQ_DETECTOR_TYPE DFC
-ENV ACQ_IMAGE_PROCESSORS 3
+ENV ACQ_IMAGE_PROCESSORS 4
 
 CMD /bin/bash -c "cd /ros && source /opt/ros/noetic/setup.bash && source devel/setup.bash && \
                   roslaunch processing_node apriltag_processing.launch"
