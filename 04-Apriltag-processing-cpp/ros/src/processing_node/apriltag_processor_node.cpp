@@ -200,16 +200,16 @@ void img_processor(const marker_tracker_params& params,
 
 geometry_msgs::Quaternion rvec2quat(cv::Mat rvec) {
     geometry_msgs::Quaternion quat;
-    float x = rvec.at<float>(0);
-    float y = rvec.at<float>(1);
-    float z = rvec.at<float>(2);
-    float r = sqrt(x * x + y * y + z * z);
+    double x = rvec.at<float>(0);
+    double y = rvec.at<float>(1);
+    double z = rvec.at<float>(2);
+    double r = sqrt(x * x + y * y + z * z);
     if (r < 0.00001) {
         quat.x = 1;
         return quat;
     }
-    float c = cos(r / 2);
-    float s = sin(r / 2);
+    double c = cos(r / 2);
+    double s = sin(r / 2);
     quat.x = c;
     quat.y = s * z / r;
     quat.z = -s * y / r;
