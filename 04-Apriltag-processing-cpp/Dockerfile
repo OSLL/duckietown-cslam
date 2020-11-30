@@ -1,4 +1,3 @@
-#FROM duckietown/dt-ros-commons:daffy-amd64
 FROM duckietown/dt-ros-commons:daffy-arm32v7
 
 # Install OpenCV and CvBridge
@@ -17,6 +16,9 @@ RUN cd / && wget -t 0 -T 15 -c https://github.com/opencv/opencv/archive/4.3.0.zi
     unzip 4.3.0.zip && rm -r 4.3.0.zip
 RUN mkdir /opencv-4.3.0/build && cd /opencv-4.3.0/build && \
     cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/usr/local .. && make -j$(nproc) && make install
+
+# Or comment out all the commands above and use
+# FROM galanton/dt-ros-commons_opencv:daffy-arm32v7
 
 # Argumens for where the different places from which we will get files from are
 ARG aruco_lib_dir=lib/src/aruco
