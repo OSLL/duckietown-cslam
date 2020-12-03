@@ -9,8 +9,8 @@
 
 #include <boost/lexical_cast.hpp>
 #include <opencv2/core.hpp>
-#include <raspicam_cv.h>
-#include <cvversioning.h>
+#include "raspicam_cv.h"
+#include "cvversioning.h"
 #include <yaml-cpp/yaml.h>
 
 #include "duckietown_msgs/AprilTagExtended.h"
@@ -248,6 +248,8 @@ int main(int argc, char **argv) {
 
     ros::Publisher apriltags_pub = node_handle.advertise<duckietown_msgs::AprilTagExtended>(tag_pose_topic, 20);
 
+    cout << "raspicam::RaspiCam_Cv video" << endl;
+    sleep(1);
     raspicam::RaspiCam_Cv video;
     video.set(CV_CAP_PROP_FORMAT, CV_8UC1);
     if (!video.open()) {
@@ -291,11 +293,9 @@ int main(int argc, char **argv) {
                 apriltag_msg.corners[2 * i + 1] = tag.corners[i].y;
             }
             if (tag.tvec.cols * tag.tvec.rows != 3 || tag.rvec.cols * tag.rvec.rows != 3) {
-                apriltag_msg.transform.translation = geometry_msgs::Vector3();
-                apriltag_msg.transform.rotation = geometry_msgs::Quaternion();
-                apriltag_msg.transform.rotation.x = 1;
                 cout << "                                                                           ";
                 cout << "estimation_error: tvec=" << tag.tvec << "  rvec=" << tag.rvec << endl;
+                continue;
             } else {
                 vec3.x = tag.tvec.at<float>(0);
                 vec3.y = tag.tvec.at<float>(1);

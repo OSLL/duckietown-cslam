@@ -21,9 +21,10 @@ catkin_package()
 include_directories(aruco-3.1.12/src)
 add_subdirectory(aruco-3.1.12)
 
+include_directories(raspicam-0.1.9/src)
+add_subdirectory(raspicam-0.1.9)
 
 find_package(OpenCV REQUIRED)
-find_package(raspicam REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 add_executable(apriltag_processor_node
@@ -31,15 +32,14 @@ add_executable(apriltag_processor_node
 
 target_link_libraries(apriltag_processor_node
         ${catkin_LIBRARIES}
-        ${raspicam_CV_LIBS}
         ${OPENCV_LIBRARIES}
         aruco
         yaml-cpp
+        raspicam_cv
         )
 
 target_include_directories(apriltag_processor_node PUBLIC
         ${OPENCV_INCLUDE_DIRS}
-        /usr/local/include/raspicam
         )
 
 

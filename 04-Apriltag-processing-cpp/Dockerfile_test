@@ -1,5 +1,4 @@
-FROM duckietown/dt-ros-commons:daffy-arm32v7
-#FROM duckietown/dt-ros-commons:daffy-amd64
+FROM duckietown/dt-ros-commons:daffy-amd64
 
 # Install OpenCV and CvBridge
 RUN apt-get update && apt-get install -f -y libyaml-cpp-dev wget unzip
@@ -36,11 +35,13 @@ COPY ${processing_node_dir}/aruco_bug_fixer.py /${processing_node_dir}/aruco_bug
 RUN cd /${processing_node_dir} && wget https://sourceforge.net/projects/aruco/files/3.1.12/aruco-3.1.12.zip && \
     unzip aruco-3.1.12.zip && rm -r aruco-3.1.12.zip && python3 aruco_bug_fixer.py
 
-#RUN cd /${processing_node_dir} && wget https://sourceforge.net/projects/raspicam/files/raspicam-0.1.9.zip && \
-#    unzip raspicam-0.1.9.zip && rm -r raspicam-0.1.9.zip
-COPY ${processing_node_dir}/raspicam-0.1.9 /${processing_node_dir}/raspicam-0.1.9
-RUN mkdir /${processing_node_dir}/raspicam-0.1.9/build && cd /${processing_node_dir}/raspicam-0.1.9/build && \
-    cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_CXX_FLAGS="-std=c++11" .. && make -j$(nproc) && make install && ldconfig
+#RUN apt-get update && apt-get -y upgrade
+
+COPY ${processing_node_dir}/raspicam-mock /${processing_node_dir}/raspicam-0.1.9
+#COPY ${processing_node_dir}/raspicam-0.1.9 /${processing_node_dir}/raspicam-0.1.9
+
+#RUN mkdir /${processing_node_dir}/raspicam-0.1.9/build && cd /${processing_node_dir}/raspicam-0.1.9/build && \
+#    cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_CXX_FLAGS="-std=c++11" .. && make -j$(nproc) && make install && ldconfig
 
 # Copy and build the program files and configure the environment variables
 COPY ${duckietown_msgs_dir} /${duckietown_msgs_dir}
