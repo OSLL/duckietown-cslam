@@ -1,4 +1,5 @@
 FROM duckietown/dt-ros-commons:daffy-arm32v7
+#FROM duckietown/dt-ros-commons:daffy-amd64
 
 # Install OpenCV and CvBridge
 RUN apt-get update && apt-get install -f -y libyaml-cpp-dev wget unzip
@@ -42,7 +43,6 @@ COPY ${processing_node_dir}/CMakeLists.txt /${processing_node_dir}/CMakeLists.tx
 COPY ${processing_node_dir}/package.xml /${processing_node_dir}/package.xml
 RUN /bin/bash -c "cd /ros/src && source /opt/ros/noetic/setup.bash && catkin_init_workspace && cd .. && catkin_make"
 COPY ${processing_node_dir}/config.yml /${processing_node_dir}/config.yml
-COPY ${processing_node_dir}/calibr.yaml /${processing_node_dir}/calibr.yaml
 COPY ${processing_node_dir}/launch /${processing_node_dir}/launch
 ENV ACQ_CONFIG_YML /${processing_node_dir}/config.yml
 ENV ACQ_CALIBR_YAML /${processing_node_dir}/calibr.yaml
@@ -50,7 +50,7 @@ ENV ACQ_CALIBR_YAML /${processing_node_dir}/calibr.yaml
 # Set optional environment variables
 ENV ACQ_ROS_MASTER_URI_DEVICE_PORT 11311
 ENV ACQ_ROS_MASTER_URI_SERVER_PORT 11311
-ENV ACQ_TOPIC_RAW camera_node/image/compressed
+ENV ACQ_TOPIC_RAW camera_node/image
 ENV ACQ_TOPIC_CAMERAINFO camera_node/camera_info
 ENV ACQ_TAG_SIZE 0.065
 ENV ACQ_POSES_TOPIC poses

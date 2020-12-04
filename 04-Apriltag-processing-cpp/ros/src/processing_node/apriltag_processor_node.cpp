@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <fstream>
 #include <queue>
 #include <thread>
 #include <mutex>
@@ -13,14 +14,13 @@
 #include <cvversioning.h>
 #include <yaml-cpp/yaml.h>
 
+#include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/CompressedImage.h>
+
 #include "duckietown_msgs/AprilTagExtended.h"
 #include "aruco.h"
 #include "dcf/dcfmarkertracker.h"
-
-//#include <sensor_msgs/CameraInfo.h>
-//#include <sensor_msgs/Image.h>
-//#include <sensor_msgs/image_encodings.h>
-//#include <ctime>
 
 
 using namespace std;
@@ -45,6 +45,36 @@ public:
 
 private:
     queue<chrono::high_resolution_clock::time_point> times;
+    size_t n;
+};
+
+class arg_timer_avg {
+public:
+    explicit arg_timer_avg(int n = 100) :
+            n(n) {
+        for (int i = 0; i < n; i++) {
+            times.push(chrono::high_resolution_clock::now());
+            args.push(0.0);
+        }
+        sum = 0;
+    }
+
+    inline void tick(double t) {
+        times.push(chrono::high_resolution_clock::now());
+        times.pop();
+        sum += t - args.back();
+        args.push(t);
+        args.pop();
+    }
+
+    double vel() {
+        return (sum * n) / (chrono::duration_cast<chrono::microseconds>(times.back() - times.front()).count()) * 1e6;
+    }
+
+private:
+    queue<chrono::high_resolution_clock::time_point> times;
+    queue<double> args;
+    double sum;
     size_t n;
 };
 
@@ -168,6 +198,42 @@ CameraParameters load_params(unsigned int height, unsigned int width, const stri
     return CameraParameters(camera_matrix, distortion, image_size);
 }
 
+sensor_msgs::CameraInfo cam_info;
+
+void save_params(const string &calibr_file) {
+    std::vector<double> K(9);
+    for (int i = 0; i < 9; i++) {
+        K[i] = cam_info.K[i];
+    }
+    std::vector<double> D = cam_info.D;
+
+    YAML::Emitter out;
+    out <<
+    YAML::BeginMap <<
+    YAML::Key << "camera_matrix" << YAML::Value <<
+        YAML::BeginMap <<
+        YAML::Key << "cols" << YAML::Value << 3 <<
+        YAML::Key << "data" << YAML::Value << YAML::Flow << K <<
+        YAML::Key << "rows" << YAML::Value << 3 <<
+        YAML::EndMap <<
+    YAML::Key << "distortion_coefficients" << YAML::Value <<
+        YAML::BeginMap <<
+        YAML::Key << "cols" << YAML::Value << D.size() <<
+        YAML::Key << "data" << YAML::Value << YAML::Flow << D <<
+        YAML::Key << "rows" << YAML::Value << 1 <<
+        YAML::EndMap <<
+    YAML::EndMap;
+
+    ofstream fout(calibr_file);
+    fout << out.c_str();
+    fout.close();
+    cout << "================ file dump ========================\n"
+    << out.c_str() << "\n"
+    << "-------------------------------------------------\n"
+    << "width = " << cam_info.width << "  height = " << cam_info.height << "\n"
+    << "=================================================" << endl;
+}
+
 void img_processor(const marker_tracker_params& params,
                    concurrent_blocking_queue<cv::Mat> &img_queue,
                    concurrent_blocking_queue<tag_data> &tag_queue) {
@@ -217,6 +283,116 @@ geometry_msgs::Quaternion rvec2quat(cv::Mat rvec) {
     return quat;
 }
 
+concurrent_blocking_queue<tag_data> tag_queue;
+
+void publisher(ros::Publisher &apriltags_pub, string &device_name) {
+    cv::Mat image;
+    tag_data tag;
+    duckietown_msgs::AprilTagExtended apriltag_msg;
+    geometry_msgs::Vector3 vec3;
+    geometry_msgs::Quaternion quat;
+    int tag_msg_seq = 0;
+    arg_timer_avg timer;
+    while (tag_queue.pop(tag)) {
+        timer.tick(tag_queue.size() + 1.0);
+        cout << "                                                                 "
+             << "                                                   " << timer.vel() << endl;
+
+        ros::Time t = ros::Time::now();
+        apriltag_msg.tag_id = tag.tag_id;
+        apriltag_msg.tag_family = tag.tag_family;
+        for (int i = 0; i < 4; i++) {
+            apriltag_msg.corners[2 * i + 0] = tag.corners[i].x;
+            apriltag_msg.corners[2 * i + 1] = tag.corners[i].y;
+        }
+        if (tag.tvec.cols * tag.tvec.rows != 3 || tag.rvec.cols * tag.rvec.rows != 3) {
+            cout << "                                                                           ";
+            cout << "estimation_error: tvec=" << tag.tvec << "  rvec=" << tag.rvec << endl;
+            continue;
+        } else {
+            vec3.x = tag.tvec.at<float>(0);
+            vec3.y = tag.tvec.at<float>(1);
+            vec3.z = tag.tvec.at<float>(2);
+            apriltag_msg.transform.translation = vec3;
+            apriltag_msg.transform.rotation = rvec2quat(tag.rvec);
+        }
+        apriltag_msg.header.stamp = t;
+        apriltag_msg.header.seq = tag_msg_seq++;
+        apriltag_msg.header.frame_id = device_name;
+        apriltags_pub.publish(apriltag_msg);
+    }
+}
+
+bool was_cam_info = false;
+
+void cam_info_callback(const sensor_msgs::CameraInfo &cam_info_) {
+    was_cam_info = true;
+    cam_info = cam_info_;
+}
+
+concurrent_blocking_queue<cv::Mat> img_queue;
+
+void img_raw_callback(const sensor_msgs::ImageConstPtr &img) {
+    if (!was_cam_info) {
+        return;
+    }
+    static int iter = 0;
+    static timer_avg timer;
+    static TimerAvrg timer1;
+    static TimerAvrg timer2;
+
+    timer1.start();
+    cv::Size image_size;
+    image_size.height = cam_info.height;
+    image_size.width = cam_info.width;
+    const cv::Mat color_image(img->height, img->width,
+                              CV_8UC3, const_cast<uint8_t *>(img->data.data()), img->step);
+    timer1.stop();
+    cv::Mat image;
+    timer2.start();
+    cv::cvtColor(color_image, image, cv::COLOR_BGR2GRAY);
+    timer2.stop();
+
+    img_queue.push(move(image));
+
+    timer.tick();
+    cout << "r                                                        "
+         << ++iter << "   " << img_queue.size() << "   " << timer.avg() * 1000
+         << "   " << timer1.getAvrg() * 1000 << "   " << timer2.getAvrg() * 1000 << endl;
+}
+
+void img_comp_callback(const sensor_msgs::CompressedImageConstPtr &img) {
+    if (!was_cam_info) {
+        return;
+    }
+    static int iter = 0;
+    static timer_avg timer;
+    static TimerAvrg timer1;
+    static TimerAvrg timer2;
+    static TimerAvrg timer3;
+
+    timer1.start();
+    int rows = 1;
+    int cols = (int) (cam_info.height * cam_info.width);
+    cv::Mat buf(rows, cols, CV_8U, const_cast<uint8_t *>(img->data.data()));
+    timer1.stop();
+    timer2.start();
+    cv::Mat color_image = cv::imdecode(buf, cv::IMREAD_COLOR);
+    timer2.stop();
+    cv::Mat image;
+    timer3.start();
+    cv::cvtColor(color_image, image, cv::COLOR_BGR2GRAY);
+    timer3.stop();
+
+    img_queue.push(move(image));
+
+    timer.tick();
+    cout << "c                                                        "
+         << ++iter << "   " << img_queue.size() << "   " << timer.avg() * 1000
+         << "   " << timer1.getAvrg() * 1000 << "   " << timer2.getAvrg() * 1000
+         << "   " << timer3.getAvrg() * 1000 << endl;
+}
+
 string getenv(const char *variable_name, const char *default_value) {
     const char* value = getenv(variable_name);
     return value ? value : default_value;
@@ -233,8 +409,8 @@ int main(int argc, char **argv) {
     ros::NodeHandle node_handle("~");
 
     string device_name    = getenv("ACQ_DEVICE_NAME",      "watchtower10");
-//    string img_topic_suf  = getenv("ACQ_TOPIC_RAW",        "camera_node/image");
-//    string info_topic_suf = getenv("ACQ_TOPIC_CAMERAINFO", "camera_node/camera_info");
+    string img_topic_suf  = getenv("ACQ_TOPIC_RAW",        "camera_node/image");
+    string info_topic_suf = getenv("ACQ_TOPIC_CAMERAINFO", "camera_node/camera_info");
     string pose_topic_suf = getenv("ACQ_POSES_TOPIC",      "poses");
     string config_file    = getenv("ACQ_CONFIG_YML",       "config.yml");
     string calibr_file    = getenv("ACQ_CALIBR_YAML",      "calibr.yaml");
@@ -242,85 +418,47 @@ int main(int argc, char **argv) {
     int    img_proc_num   = getenv("ACQ_IMAGE_PROCESSORS",  3);
     float  marker_size    = getenv("ACQ_TAG_SIZE",          0.065);
 
-//    string img_raw_topic  = "/" + device_name + "/" + img_topic_suf;
-//    string cam_info_topic = "/" + device_name + "/" + info_topic_suf;
+    string img_raw_topic  = "/" + device_name + "/" + img_topic_suf;
+    string img_comp_topic = img_raw_topic + "/compressed";
+    string cam_info_topic = "/" + device_name + "/" + info_topic_suf;
     string tag_pose_topic = "/poses_acquisition/" + pose_topic_suf;
+
+    ros::Subscriber raw_img_pub  = node_handle.subscribe(img_raw_topic,  1000, img_raw_callback);
+    ros::Subscriber comp_img_pub = node_handle.subscribe(img_comp_topic, 1000, img_comp_callback);
+    ros::Subscriber cam_info_sub = node_handle.subscribe(cam_info_topic, 1,    cam_info_callback);
 
     ros::Publisher apriltags_pub = node_handle.advertise<duckietown_msgs::AprilTagExtended>(tag_pose_topic, 20);
 
-    raspicam::RaspiCam_Cv video;
-    video.set(CV_CAP_PROP_FORMAT, CV_8UC1);
-    if (!video.open()) {
-        cerr << "Error opening camera" << endl;
-        return -1;
+    ros::Rate rate(60);
+    while (!was_cam_info && ros::ok()) {
+        cout << "wait camera_info" << endl;
+        ros::spinOnce();
+        rate.sleep();
     }
-    sleep(3);
 
-    concurrent_blocking_queue<cv::Mat> img_queue;
-    concurrent_blocking_queue<tag_data> tag_queue;
+    if (!ros::ok()) {
+        return 1;
+    }
+
+    save_params(calibr_file);
 
     vector<thread> img_processors;
     for (int i = 0; i < img_proc_num; i++) {
         marker_tracker_params params;
-        params.height = video.getHeight();
-        params.width = video.getWidth();
+        params.height = cam_info.height;
+        params.width = cam_info.width;
         params.calibr_file = calibr_file;
         params.config_file = config_file;
         params.marker_size = marker_size;
         img_processors.emplace_back(thread(img_processor, params, ref(img_queue), ref(tag_queue)));
     }
+    thread pub_thread(publisher, ref(apriltags_pub), ref(device_name));
 
-    cv::Mat image;
-    tag_data tag;
-    duckietown_msgs::AprilTagExtended apriltag_msg;
-    geometry_msgs::Vector3 vec3;
-    geometry_msgs::Quaternion quat;
-    int iter = 0;
-    int tag_msg_seq = 0;
-    timer_avg timer;
-    while (video.grab() && ros::ok()) {
-        video.retrieve(image);
-        img_queue.push(move(image));
-        ros::Time t = ros::Time::now();
-        while (tag_queue.size() != 0) {
-            tag_queue.pop(tag);
-            apriltag_msg.tag_id = tag.tag_id;
-            apriltag_msg.tag_family = tag.tag_family;
-            for (int i = 0; i < 4; i++) {
-                apriltag_msg.corners[2 * i + 0] = tag.corners[i].x;
-                apriltag_msg.corners[2 * i + 1] = tag.corners[i].y;
-            }
-            if (tag.tvec.cols * tag.tvec.rows != 3 || tag.rvec.cols * tag.rvec.rows != 3) {
-                apriltag_msg.transform.translation = geometry_msgs::Vector3();
-                apriltag_msg.transform.rotation = geometry_msgs::Quaternion();
-                apriltag_msg.transform.rotation.x = 1;
-                cout << "                                                                           ";
-                cout << "estimation_error: tvec=" << tag.tvec << "  rvec=" << tag.rvec << endl;
-            } else {
-                vec3.x = tag.tvec.at<float>(0);
-                vec3.y = tag.tvec.at<float>(1);
-                vec3.z = tag.tvec.at<float>(2);
-                apriltag_msg.transform.translation = vec3;
-                apriltag_msg.transform.rotation = rvec2quat(tag.rvec);
-            }
-            apriltag_msg.header.stamp = t;
-            apriltag_msg.header.seq = tag_msg_seq++;
-            apriltag_msg.header.frame_id = device_name;
-            apriltags_pub.publish(apriltag_msg);
-        }
+    ros::spin();
 
-//        img_msg.height = image.rows;
-//        img_msg.width = image.cols;
-//        img_msg.step = image.cols * 3;
-//        img_msg.data.assign(image.data, image.data + image.rows * image.cols * 3);
-//        img_msg.encoding = sensor_msgs::image_encodings::BGR8;
-//        img_msg.header.stamp = ros::Time::now();
-//        img_msg.header.seq = id++;
-//        comp_img_pub.publish(img_msg);
-        timer.tick();
+    cout << "!!!!!!!!!!!!SHUTDOWN!!!!!!!!!!!!" << endl;
 
-        cout << "                                                         " << ++iter << "   " << img_queue.size() << "   " << timer.avg() * 1000 << endl;
-    }
+    tag_queue.close();
     img_queue.close();
     for (int i = 0; i < img_proc_num; i++) {
         img_processors[i].join();
