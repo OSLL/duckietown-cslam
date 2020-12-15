@@ -21,6 +21,8 @@ you can also use a pre-built image -- see `Dockerfile`):
 ```shell script
 docker -H <rpi name>.local build -t <docker image name> .
 ```
+Or you can use ready image `galanton/apriltag-processor:daffy-arm32v7`
+
 An example of starting a container on PRI:
 ```shell script
 docker -H <rpi name>.local run -it --rm --network=host --privileged \
