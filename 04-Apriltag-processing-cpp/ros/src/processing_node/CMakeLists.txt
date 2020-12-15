@@ -29,12 +29,15 @@ find_package(yaml-cpp REQUIRED)
 add_executable(apriltag_processor_node
         apriltag_processor_node.cpp)
 
+add_dependencies(apriltag_processor_node ${catkin_EXPORTED_TARGETS})
+
 target_link_libraries(apriltag_processor_node
         ${catkin_LIBRARIES}
         ${raspicam_CV_LIBS}
         ${OPENCV_LIBRARIES}
         aruco
         yaml-cpp
+        raspicam_cv
         )
 
 target_include_directories(apriltag_processor_node PUBLIC

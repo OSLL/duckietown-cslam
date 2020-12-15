@@ -14,6 +14,8 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   AprilTagExtended.msg
+  AprilTagDetection.msg
+  AprilTagDetectionArray.msg
 )
 
 
