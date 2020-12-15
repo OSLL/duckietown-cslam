@@ -1,0 +1,70 @@
+21a22
+>     from cv_bridge import CvBridge
+27c28
+< from sensor_msgs.msg import CompressedImage, CameraInfo
+---
+> from sensor_msgs.msg import Image, CameraInfo
+136c137
+<             self.image_msg = CompressedImage()
+---
+>             self.image_msg = Image()
+142c143,144
+<             self.stream = io.BytesIO()
+---
+>             # self.stream = io.BytesIO()
+>             self.stream = np.empty((self._res_w, self._res_h, 3), dtype=np.uint8)
+168,169c170,171
+<             "~image/compressed",
+<             CompressedImage,
+---
+>             "~image",
+>             Image,
+172c174
+<             dt_help="The stream of JPEG compressed images from the camera"
+---
+>             dt_help="The stream of mono8 images from the camera"
+219c221
+<                         'jpeg',
+---
+>                         'bgr',
+283a286,293
+> 
+>         bridge = CvBridge()
+>         from collections import deque
+>         import time
+>         cycles = deque([0]*500)
+>         n = 0
+>         import cv2
+> 
+289,290c299
+<             stream.seek(0)
+<             stream_data = stream.getvalue()
+---
+>             stream_data = stream
+293,295c302,316
+<             image_msg = CompressedImage()
+<             image_msg.format = "jpeg"
+<             image_msg.data = stream_data
+---
+>             t = time.time()
+>             gray = cv2.cvtColor(stream_data, cv2.COLOR_BGR2GRAY)
+>             image_msg = bridge.cv2_to_imgmsg(gray)
+> 
+>             n = n + 1
+>             cycles.pop()
+>             cycles.appendleft(time.time() - t)
+>             if n < 500:
+>                 print(str(n) + "                               " + str(sum(cycles) * 2 / n * 500))
+>             else:
+>                 print(str(n) + "                               " + str(sum(cycles) * 2))
+> 
+>             image_msg.height = self._res_h
+>             image_msg.width = self._res_w
+>             image_msg.encoding = "mono8"
+297a319,321
+>             image_msg.step = len(image_msg.data) // image_msg.height
+>             image_msg.is_bigendian = True
+> 
+305,306d328
+<             stream.seek(0)
+<             stream.truncate()

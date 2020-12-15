@@ -1,0 +1,34 @@
+27c27
+< from sensor_msgs.msg import CompressedImage, CameraInfo
+---
+> from sensor_msgs.msg import Image, CameraInfo
+136c136
+<             self.image_msg = CompressedImage()
+---
+>             self.image_msg = Image()
+168,169c168,169
+<             "~image/compressed",
+<             CompressedImage,
+---
+>             "~image",
+>             Image,
+172c172
+<             dt_help="The stream of JPEG compressed images from the camera"
+---
+>             dt_help="The stream of bgr8 images from the camera"
+219c219
+<                         'jpeg',
+---
+>                         'bgr',
+293,294c293,295
+<             image_msg = CompressedImage()
+<             image_msg.format = "jpeg"
+---
+>             image_msg = Image()
+>             image_msg.height = self._res_h
+>             image_msg.width = self._res_w
+295a297
+>             image_msg.encoding = "bgr8"
+297a300,301
+>             image_msg.step = len(image_msg.data) // image_msg.height
+>             image_msg.is_bigendian = True
