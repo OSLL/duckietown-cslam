@@ -56,6 +56,7 @@ ENV ACQ_TAG_SIZE 0.065
 ENV ACQ_POSES_TOPIC poses
 ENV ACQ_DETECTOR_TYPE DFC
 ENV ACQ_IMAGE_PROCESSORS 4
+ENV ACQ_TAG_EXTENDED 0
 
 CMD /bin/bash -c "cd /ros && source /opt/ros/noetic/setup.bash && source devel/setup.bash && \
                   roslaunch processing_node apriltag_processing.launch"

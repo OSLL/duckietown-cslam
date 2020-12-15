@@ -13,6 +13,7 @@
 #include <cvversioning.h>
 #include <yaml-cpp/yaml.h>
 
+#include "duckietown_msgs/AprilTagExtended.h"
 #include "duckietown_msgs/AprilTagDetection.h"
 #include "duckietown_msgs/AprilTagDetectionArray.h"
 #include "aruco.h"
@@ -219,6 +220,36 @@ geometry_msgs::Quaternion rvec2quat(cv::Mat rvec) {
     return quat;
 }
 
+template<typename T>
+T to_apriltag_msg(const tag_data &tag) {
+    T apriltag_msg;
+    geometry_msgs::Vector3 vec3;
+    geometry_msgs::Quaternion quat;
+
+    apriltag_msg.tag_id = tag.tag_id;
+    apriltag_msg.tag_family = tag.tag_family;
+    for (int i = 0; i < 4; i++) {
+        apriltag_msg.corners[2 * i + 0] = tag.corners[i].x;
+        apriltag_msg.corners[2 * i + 1] = tag.corners[i].y;
+    }
+    vec3.x = tag.tvec.at<float>(0);
+    vec3.y = tag.tvec.at<float>(1);
+    vec3.z = tag.tvec.at<float>(2);
+    apriltag_msg.transform.translation = vec3;
+    apriltag_msg.transform.rotation = rvec2quat(tag.rvec);
+
+    return apriltag_msg;
+}
+
+bool check_and_report(const tag_data &tag) {
+    if (tag.tvec.cols * tag.tvec.rows != 3 || tag.rvec.cols * tag.rvec.rows != 3) {
+        cout << "                                                                           ";
+        cout << "estimation_error: tvec=" << tag.tvec << "  rvec=" << tag.rvec << endl;
+        return false;
+    }
+    return true;
+}
+
 string getenv(const char *variable_name, const char *default_value) {
     const char* value = getenv(variable_name);
     return value ? value : default_value;
@@ -243,15 +274,20 @@ int main(int argc, char **argv) {
     string detector_type  = getenv("ACQ_DETECTOR_TYPE",    "DFC");
     int    img_proc_num   = getenv("ACQ_IMAGE_PROCESSORS",  3);
     float  marker_size    = getenv("ACQ_TAG_SIZE",          0.065);
+    bool   old_tags_msg   = getenv("ACQ_TAG_EXTENDED",      0);
 
 //    string img_raw_topic  = "/" + device_name + "/" + img_topic_suf;
 //    string cam_info_topic = "/" + device_name + "/" + info_topic_suf;
     string tag_pose_topic = "/poses_acquisition/" + pose_topic_suf;
 
-    ros::Publisher apriltags_pub = node_handle.advertise<duckietown_msgs::AprilTagDetectionArray>(tag_pose_topic, 20);
+    ros::Publisher apriltags_pub = old_tags_msg ?
+                                   node_handle.advertise<duckietown_msgs::AprilTagExtended>      (tag_pose_topic, 20) :
+                                   node_handle.advertise<duckietown_msgs::AprilTagDetectionArray>(tag_pose_topic, 20);
 
     raspicam::RaspiCam_Cv video;
-    video.set(CV_CAP_PROP_FORMAT, CV_8UC1);
+    video.set(CV_CAP_PROP_FORMAT, CV_8UC1);  // gray format
+    video.set(CV_CAP_PROP_FRAME_WIDTH, 1296);
+    video.set(CV_CAP_PROP_FRAME_HEIGHT, 972);
     if (!video.open()) {
         cerr << "Error opening camera" << endl;
         return -1;
@@ -274,8 +310,6 @@ int main(int argc, char **argv) {
 
     cv::Mat image;
     tags_data tags;
-    geometry_msgs::Vector3 vec3;
-    geometry_msgs::Quaternion quat;
     int iter = 0;
     int tag_msg_seq = 0;
     timer_avg timer;
@@ -285,37 +319,37 @@ int main(int argc, char **argv) {
         ros::Time t = ros::Time::now();
         while (tags_queue.size() != 0) {
             tags_queue.pop(tags);
-            duckietown_msgs::AprilTagDetectionArray apriltags_msg;
 
-            for (auto tag : tags.tags) {
-                if (tag.tvec.cols * tag.tvec.rows != 3 || tag.rvec.cols * tag.rvec.rows != 3) {
-                    cout << "                                                                           ";
-                    cout << "estimation_error: tvec=" << tag.tvec << "  rvec=" << tag.rvec << endl;
+            if (old_tags_msg) {
+                for (const tag_data &tag : tags.tags) {
+                    if (!check_and_report(tag)) {
+                        continue;
+                    }
+                    auto apriltag_msg = to_apriltag_msg<duckietown_msgs::AprilTagExtended>(tag);
+                    apriltag_msg.header.stamp = t;
+                    apriltag_msg.header.seq = tag_msg_seq++;
+                    apriltag_msg.header.frame_id = device_name;
+                    apriltags_pub.publish(apriltag_msg);
+                }
+            } else {
+                duckietown_msgs::AprilTagDetectionArray apriltags_msg;
+
+                for (const tag_data &tag : tags.tags) {
+                    if (!check_and_report(tag)) {
+                        continue;
+                    }
+                    auto apriltag_msg = to_apriltag_msg<duckietown_msgs::AprilTagDetection>(tag);
+                    apriltags_msg.detections.push_back(apriltag_msg);
+                }
+                if (apriltags_msg.detections.empty()) {
                     continue;
                 }
-                duckietown_msgs::AprilTagDetection apriltag_msg;
-                apriltag_msg.tag_id = tag.tag_id;
-                apriltag_msg.tag_family = tag.tag_family;
-                for (int i = 0; i < 4; i++) {
-                    apriltag_msg.corners[2 * i + 0] = tag.corners[i].x;
-                    apriltag_msg.corners[2 * i + 1] = tag.corners[i].y;
-                }
-                vec3.x = tag.tvec.at<float>(0);
-                vec3.y = tag.tvec.at<float>(1);
-                vec3.z = tag.tvec.at<float>(2);
-                apriltag_msg.transform.translation = vec3;
-                apriltag_msg.transform.rotation = rvec2quat(tag.rvec);
 
-                apriltags_msg.detections.push_back(apriltag_msg);
+                apriltags_msg.header.stamp = t;
+                apriltags_msg.header.seq = tag_msg_seq++;
+                apriltags_msg.header.frame_id = device_name;
+                apriltags_pub.publish(apriltags_msg);
             }
-            if (apriltags_msg.detections.empty()) {
-                continue;
-            }
-
-            apriltags_msg.header.stamp = t;
-            apriltags_msg.header.seq = tag_msg_seq++;
-            apriltags_msg.header.frame_id = device_name;
-            apriltags_pub.publish(apriltags_msg);
         }
 
         timer.tick();
