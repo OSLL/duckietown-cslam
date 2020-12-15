@@ -30,25 +30,5 @@ docker -H <rpi name>.local run -it --rm --network=host --privileged \
 ```
 
 -------------------
-To visualize trajectories of markers:
-* Start `roscore` on your computer
-```shell script
-roscore
-```
-* Start graph optimizer
-```shell script
-docker run --rm -it --net=host -e OUTPUT_DIR=/data --name graph_optimizer \
-       -v <path to output folder>:/data duckietown/cslam-graphoptimizer:daffy-amd64
-```
-* Start visualization and add `movable_path` topics in opened `rviz` to draw
-```shell script
-xhost + ; docker run -it --rm --net=host --env="DISPLAY" \
-          -e ROS_MASTER_IP=<computer roscore ip> duckietown/cslam-visualization ; xhost -
-```
-* Start detection on PRI
-```shell script
-docker -H <rpi name>.local run -it --rm --network=host --privileged \
-       -e ROS_MASTER_URI=http://<computer roscore ip>:11311 \
-       -e ACQ_DEVICE_NAME=<rpi name> --name apriltag_processor <docker image name>
-```
-Visualization in `rviz` may lag behind the actual movements of the markers over time
+To visualize the trajectories please use the version before migration to AprilTagDetectionArray:
+https://github.com/OSLL/duckietown-cslam/tree/173a193b3429ee9fe87be1cc6ff4d179c18422bb/04-Apriltag-processing-cpp
