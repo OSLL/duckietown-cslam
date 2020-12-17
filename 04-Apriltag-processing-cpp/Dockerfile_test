@@ -46,6 +46,7 @@ COPY ${processing_node_dir}/raspicam-mock /${processing_node_dir}/raspicam-0.1.9
 # Copy and build the program files and configure the environment variables
 COPY ${duckietown_msgs_dir} /${duckietown_msgs_dir}
 COPY ${processing_node_dir}/apriltag_processor_node.cpp /${processing_node_dir}/apriltag_processor_node.cpp
+COPY ${processing_node_dir}/utils.h /${processing_node_dir}/utils.h
 COPY ${processing_node_dir}/CMakeLists.txt /${processing_node_dir}/CMakeLists.txt
 COPY ${processing_node_dir}/package.xml /${processing_node_dir}/package.xml
 RUN /bin/bash -c "cd /ros/src && source /opt/ros/noetic/setup.bash && catkin_init_workspace && cd .. && catkin_make"

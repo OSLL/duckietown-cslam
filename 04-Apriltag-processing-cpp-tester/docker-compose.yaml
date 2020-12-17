@@ -1,0 +1,39 @@
+version: '3'
+services:
+#    ros:
+#        image: "duckietown/dt-ros-commons:daffy-amd64"
+#        network_mode: "host"
+#        container_name: ros
+    detector-cpp:
+        build:
+            context: ../04-Apriltag-processing-cpp
+            dockerfile: Dockerfile_test
+        network_mode: "host"
+        environment:
+            ACQ_DEVICE_NAME: "watchtower10"
+#            ROS_MASTER_URI=http://192:
+#                168:
+#                    1:
+#                        33:11311/:
+        container_name: detector-cpp
+#        depends_on:
+#            - ros
+#    detector-py:
+#        image: "duckietown/apriltag-processor:master19-amd64"
+##        build:
+##            context: ../04-Apriltag-processing
+#        network_mode: "host"
+#        environment:
+#            ACQ_DEVICE_NAME: "watchtower20"
+#        container_name: detector-py
+#        depends_on:
+#            - ros
+    tester:
+        build:
+            context: .
+            args:
+                BAG_PATH: ${BAG_PATH}
+        network_mode: "host"
+        container_name: tester
+#        depends_on:
+#            - ros

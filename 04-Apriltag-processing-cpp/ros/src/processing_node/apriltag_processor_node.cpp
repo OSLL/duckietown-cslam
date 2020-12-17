@@ -2,12 +2,8 @@
 
 #include <chrono>
 #include <iostream>
-#include <queue>
 #include <thread>
-#include <mutex>
-#include <condition_variable>
 
-#include <boost/lexical_cast.hpp>
 #include <opencv2/core.hpp>
 #include "raspicam_cv.h"
 #include "cvversioning.h"
@@ -16,6 +12,7 @@
 #include "duckietown_msgs/AprilTagExtended.h"
 #include "aruco.h"
 #include "dcf/dcfmarkertracker.h"
+#include "utils.h"
 
 //#include <sensor_msgs/CameraInfo.h>
 //#include <sensor_msgs/Image.h>
@@ -76,57 +73,6 @@ struct TimerAvrg {
         for (auto t:times) sum += t;
         return sum / double(times.size());
     }
-};
-
-template<typename T>
-class concurrent_blocking_queue {
-public:
-    concurrent_blocking_queue() {
-        closed = false;
-    }
-
-    bool pop(T &item) {
-        unique_lock<mutex> lock(m);
-        while (q.empty() && !closed) {
-            c.wait(lock);
-        }
-        if (closed) {
-            return false;
-        }
-        item = q.front();
-        q.pop();
-        return true;
-    }
-
-    void push(const T &item) {
-        unique_lock<mutex> lock(m);
-        q.push(item);
-        lock.unlock();
-        c.notify_one();
-    }
-
-    void push(T &&item) {
-        unique_lock<mutex> lock(m);
-        q.push(move(item));
-        lock.unlock();
-        c.notify_one();
-    }
-
-    void close() {
-        closed = true;
-        c.notify_all();
-    }
-
-    int size() {
-        unique_lock<mutex> lock(m);
-        return q.size();
-    }
-
-private:
-    queue<T> q;
-    mutex m;
-    condition_variable c;
-    bool closed;
 };
 
 struct tag_data {
@@ -217,24 +163,11 @@ geometry_msgs::Quaternion rvec2quat(cv::Mat rvec) {
     return quat;
 }
 
-string getenv(const char *variable_name, const char *default_value) {
-    const char* value = getenv(variable_name);
-    return value ? value : default_value;
-}
-
-template<typename T>
-T getenv(const char *variable_name, T default_value) {
-    const char* value = getenv(variable_name);
-    return value ? boost::lexical_cast<T>(value) : default_value;
-}
-
 int main(int argc, char **argv) {
     ros::init(argc, argv, "apriltag_processor_node");
     ros::NodeHandle node_handle("~");
 
     string device_name    = getenv("ACQ_DEVICE_NAME",      "watchtower10");
-//    string img_topic_suf  = getenv("ACQ_TOPIC_RAW",        "camera_node/image");
-//    string info_topic_suf = getenv("ACQ_TOPIC_CAMERAINFO", "camera_node/camera_info");
     string pose_topic_suf = getenv("ACQ_POSES_TOPIC",      "poses");
     string config_file    = getenv("ACQ_CONFIG_YML",       "config.yml");
     string calibr_file    = getenv("ACQ_CALIBR_YAML",      "calibr.yaml");
@@ -282,9 +215,11 @@ int main(int argc, char **argv) {
     timer_avg timer;
     while (video.grab() && ros::ok()) {
         video.retrieve(image);
+        cout << "push" << endl;
         img_queue.push(move(image));
         ros::Time t = ros::Time::now();
         while (tag_queue.size() != 0) {
+            cout << "detected" << endl;
             tag_queue.pop(tag);
             apriltag_msg.tag_id = tag.tag_id;
             apriltag_msg.tag_family = tag.tag_family;
@@ -309,14 +244,6 @@ int main(int argc, char **argv) {
             apriltags_pub.publish(apriltag_msg);
         }
 
-//        img_msg.height = image.rows;
-//        img_msg.width = image.cols;
-//        img_msg.step = image.cols * 3;
-//        img_msg.data.assign(image.data, image.data + image.rows * image.cols * 3);
-//        img_msg.encoding = sensor_msgs::image_encodings::BGR8;
-//        img_msg.header.stamp = ros::Time::now();
-//        img_msg.header.seq = id++;
-//        comp_img_pub.publish(img_msg);
         timer.tick();
 
         cout << "                                                         " << ++iter << "   " << img_queue.size() << "   " << timer.avg() * 1000 << endl;
